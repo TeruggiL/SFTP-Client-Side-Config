@@ -13,7 +13,6 @@ The setup has **two parts**. Please complete them **in order**:
 
 # Part 1 — Access setup and first delivery
 
-**Estimated time:** 20-30 minutes, plus waiting for confirmation.
 **You need:** the Linux machine that will send the data every day, and a normal (non-root-necessary) account on it.
 
 ---
