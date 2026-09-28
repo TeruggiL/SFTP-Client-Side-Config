@@ -49,7 +49,7 @@ The job runs automatically at night with nobody at the keyboard, so the key **mu
 
 ```bash
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
-ssh-keygen -t ed25519 -N "" -f ~/.ssh/erp_delivery -C "erp-delivery-<COMPANY>"
+ssh-keygen -t ed25519 -N "" -f ~/.ssh/{{erp}}_delivery -C "{{erp}}-delivery-<COMPANY>"
 ```
 
 > *"-N" parameters is necessary to avoid passphrase. It is important not to indicate a passprhase in order to simplify the daily job script, whatever you choose to code.* 
@@ -58,14 +58,14 @@ This creates two files:
 
 | File                      | What it is      | Sharing                                       |
 | ------------------------- | --------------- | --------------------------------------------- |
-| `~/.ssh/erp_delivery`     | **Private key** | ❌ **Never.** It must never leave this machine |
-| `~/.ssh/erp_delivery.pub` | Public key      | ✅ Yes, send it to us                          |
+| `~/.ssh/{{erp}}_delivery`     | **Private key** | ❌ **Never.** It must never leave this machine |
+| `~/.ssh/{{erp}}_delivery.pub` | Public key      | ✅ Yes, send it to us                          |
 
 **Check the key:**
 
 ```bash
-ls -l ~/.ssh/erp_delivery ~/.ssh/erp_delivery.pub
-ssh-keygen -y -P "" -f ~/.ssh/erp_delivery > /dev/null && echo "OK: the key has no passphrase"
+ls -l ~/.ssh/{{erp}}_delivery ~/.ssh/{{erp}}_delivery.pub
+ssh-keygen -y -P "" -f ~/.ssh/{{erp}}_delivery > /dev/null && echo "OK: the key has no passphrase"
 ```
 
 ✅ **Expected:**
@@ -81,7 +81,7 @@ Run all three commands **on the production machine**.
 **a) Your public key:**
 
 ```bash
-cat ~/.ssh/erp_delivery.pub
+cat ~/.ssh/{{erp}}_delivery.pub
 ```
 
 It is one single line that starts with `ssh-ed25519 AAAA...`.
@@ -89,10 +89,10 @@ It is one single line that starts with `ssh-ed25519 AAAA...`.
 **b) Your key fingerprint:**
 
 ```bash
-ssh-keygen -lf ~/.ssh/erp_delivery.pub
+ssh-keygen -lf ~/.ssh/{{erp}}_delivery.pub
 ```
 
-It looks like `256 SHA256:AbC123... erp-delivery-<COMPANY> (ED25519)`.
+It looks like `256 SHA256:AbC123... {{erp}}-delivery-<COMPANY> (ED25519)`.
 
 **c) Your public outbound IP address:**
 
@@ -106,12 +106,12 @@ curl -s https://api.ipify.org; echo
 
 ## Step 4 — Send us your details
 
-Send us an email with the **public key file** (e.g. `erp_delivery.pub`) configured in step 3, attached and this text:
+Send us an email with the **public key file** (e.g. `{{erp}}_delivery.pub`) configured in step 3, attached and this text:
 
 ```
 Subject: SFTP access – <COMPANY>
 
-1. Public key: attached (erp_delivery.pub)
+1. Public key: attached ({{erp}}_delivery.pub)
 2. The last 4 characters of your key fingerprint.
 3. Public outbound IP of the production machine: <YOUR_PUBLIC_IP>
 ```
@@ -143,7 +143,7 @@ This step confirms that you are connecting to **our** server and not to an impos
 > !!! Have our fingerprint ready **before** connecting. The server waits about 2 minutes for your answer and then closes the connection.
 
 ```bash
-sftp -o IdentitiesOnly=yes -i ~/.ssh/erp_delivery <sftp_user>@<server_host>
+sftp -o IdentitiesOnly=yes -i ~/.ssh/{{erp}}_delivery <sftp_user>@<server_host>
 ```
 
 The first time, you will see:
