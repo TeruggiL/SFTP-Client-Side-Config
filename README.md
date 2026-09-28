@@ -273,7 +273,7 @@ We will compare these values with the file we received and confirm. **After our 
 | `Connection timed out` | Our authorization is not active yet, or your public IP is not the one you sent us | Check your IP again (Step 3c) and tell us. Also check that your network allows outgoing port 22: `timeout 5 bash -c '</dev/tcp/github.com/22' && echo "port 22 open"` |
 | `Connection refused` | Our service is not available | Contact us |
 | `Host key verification failed` or `REMOTE HOST IDENTIFICATION HAS CHANGED` | The server identity does not match | **Stop** and call us |
-| `Permission denied (publickey)` | Wrong username, wrong key file, or key not yet authorized | Check `<SFTP_USER>` and the `-i ~/.ssh/erp_delivery` path, then contact us |
+| `Permission denied (publickey)` | Wrong username, wrong key file, or key not yet authorized | Check `<SFTP_USER>` and the `-i ~/.ssh/{{erp}}_delivery` path, then contact us |
 | `UNPROTECTED PRIVATE KEY FILE` | Private key permissions are too open | `chmod 600 ~/.ssh/erp_delivery` |
 | `Enter passphrase for key` | The key has a passphrase | Repeat Step 2 with a new key and send us the new `.pub` |
 | Asked for a **password** | Something is wrong on our side | Do not type anything. Contact us |
@@ -281,7 +281,7 @@ We will compare these values with the file we received and confirm. **After our 
 If the problem persists, send us the last lines of a detailed connection attempt:
 
 ```bash
-sftp -v -i ~/.ssh/erp_delivery <SFTP_USER>@<SERVER_HOST> 2>&1 | tail -n 40
+sftp -v -i ~/.ssh/{{erp}}_delivery <SFTP_USER>@<SERVER_HOST> 2>&1 | tail -n 40
 ```
 
 This output contains no secrets.
@@ -293,3 +293,180 @@ This output contains no secrets.
 - **Never** send, copy or share the private key (`~/.ssh/erp_delivery`).
 - Do not copy the key to other machines. If you change machines, create a new key and send us the new `.pub`.
 - If you think the key or the machine has been compromised, **tell us immediately** and we will block access.
+
+
+
+# Part 2 — Daily automatic delivery
+
+**How it should work:**
+```
+[ERP] ──exports every day──> /opt/erp-export/field-service.json ──send_sftp.sh (cron)──> our server /incoming/field-service/
+
+[ERP] ──exports every day──> /opt/erp-export/logistics-costs.json ──send_sftp.sh (cron)──> our server /incoming/logistics-costs/
+
+[ERP] ──exports every day──> /opt/erp-export/depreciation.json ──send_sftp.sh (cron)──> our server /incoming/depreciation/
+```
+
+1. Your **ERP exports** the file every day to a fixed path, always with the same name.
+2. The **script** `send_sftp.sh` uploads that file to our server.
+3. **cron** runs the script every day at the agreed time.
+
+Use the **same Linux account** as in Part 1.
+
+---
+
+## Step 1 — Configure the ERP export
+
+This depends on your ERP, so please configure it with your usual tools. The export must meet these requirements:
+
+| Requirement   | Detail                                                                                                            |
+| ------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Path and name | ==**Always the same**,== e.g. `/opt/erp-export/depreciation.json`. Each export replaces the previous one          |
+| Content       | `<AGREED_PERIOD>`. Each upload **replaces** the previous file on our server, so the file must always be complete. |
+| Format        | Same as the historical file (Part 1, Step 7.1), with the same columns in the same order                           |
+| Timing        | The export must **finish before** the upload time (Step 4)                                                        |
+| Permissions   | The account running the script must be able to **read** the file                                                  |
+
+> 💡 **Recommended (Not mandatory):** make the ERP write to a temporary name and rename it at the end, e.g. export to `sat.json.tmp` and then run `mv sat.json.tmp sat.csv`. This way the upload never takes a half-written file.
+
+**Check** after an export:
+
+```bash
+ls -l --time-style=long-iso /opt/{{erp}}-export/depreciation.json
+```
+
+✅ **Expected:** today's date and time.
+
+---
+
+## Step 2 —  Scripting for daily put (if needed)
+
+Common parameters:
+
+| Variable    | Value                                                       |
+| ----------- | ----------------------------------------------------------- |
+| `FILE`      | Full path of the file exported by your ERP (Step 1)         |
+| `DEST_DIR`  | `/incoming/depreciation` — **do not change**                |
+| `SERVER`    | `<SERVER_HOST>` from our email                              |
+| `SFTP_USER` | `<SFTP_USER>` from our email                                |
+| `KEY`       | `$HOME/.ssh/{{erp}}_delivery` (the private key from Part 1) |
+
+### Send files periodically: send_sftp.sh
+```bash
+#!/usr/bin/env bash
+# send_sftp.sh - Uploads one JSON file to the SFTP server.
+# Edit only these five values.
+FILE=/opt/erp-export/file.json            # file exported from ERP (always same name)
+DEST_DIR=/incoming/<dest_folder>          # folder on the server e.g. /depreciation 
+SERVER=<server_host>                      # from our email
+SFTP_USER=<sftp_user>                       # from our email
+KEY=$HOME/.ssh/{{erp}}_delivery               # PRIVATE key (not the .pub file)
+
+LOG="$(dirname "$(readlink -f "$0")")/send_sftp.log"
+log() { echo "$(date '+%F %T') $*" >> "$LOG"; }
+
+# 1. The file exists
+if [[ ! -f $FILE ]]; then
+  log "ERROR: file not found: $FILE"
+  exit 1
+fi
+
+# 2. The ERP updated it recently
+age=$(( $(date +%s) - $(stat -c %Y "$FILE") ))
+if (( age > 86400 )); then
+  log "WARNING: $FILE was last modified $(( age / 3600 )) hours ago (did the ERP export run?)"
+fi
+
+# 3. It is valid JSON (a broken file is NOT sent: the last good file stays on the server)
+if command -v python3 >/dev/null; then
+  if ! check=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1], encoding="utf-8")); assert isinstance(d, list), "not a JSON array"; print(len(d))' "$FILE" 2>&1); then
+    log "ERROR: invalid JSON, file NOT sent: $(echo "$check" | tail -n 1)"
+    exit 3
+  fi
+  records="$check records, "
+else
+  log "WARNING: python3 not found, JSON not validated"
+  records=""
+fi
+
+# 4. Upload
+output=$(echo "put \"$FILE\" \"$DEST_DIR/$(basename "$FILE")\"" |
+         sftp -b - -i "$KEY" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+              -o IdentitiesOnly=yes -o ConnectTimeout=20 "$SFTP_USER@$SERVER" 2>&1)
+rc=$?
+
+if (( rc == 0 )); then
+  log "OK: $FILE (${records}$(stat -c %s "$FILE") bytes)"
+else
+  log "ERROR ($rc) uploading $FILE"
+  echo "$output" | sed 's/^/    /' >> "$LOG"
+fi
+exit $rc
+```
+
+### Cron job: setup_cron.sh
+
+```bash
+#!/usr/bin/env bash
+# setup_cron.sh - Creates (or re-creates) the daily cron job that runs send_sftp.sh.
+# Run WITHOUT sudo, with the same account that made the first manual connection.
+set -euo pipefail
+
+SCRIPT="$HOME/{{erp}}-sftp/send_sftp.sh"   # path of the upload script
+HOUR=2                                 # agreed upload time, 24-hour format
+MINUTE=30
+TAG="# {{erp}}-sftp-delivery"              # identifies this job in the crontab
+
+if [[ $EUID -eq 0 ]]; then
+  echo "WARNING: you are root. The job will use root's key and known_hosts, not your account's."
+fi
+if [[ ! -f $SCRIPT ]]; then
+  echo "ERROR: $SCRIPT not found"; exit 1
+fi
+if ! [[ $HOUR =~ ^([01]?[0-9]|2[0-3])$ && $MINUTE =~ ^[0-5]?[0-9]$ ]]; then
+  echo "ERROR: invalid HOUR or MINUTE"; exit 1
+fi
+if ! command -v crontab >/dev/null; then
+  echo "ERROR: cron is not installed (Debian/Ubuntu: sudo apt install cron | RHEL/Alma/Rocky: sudo dnf install cronie)"
+  exit 1
+fi
+chmod 700 "$SCRIPT"
+
+# Replace any previous job with the same tag, then add the new one
+LINE="$MINUTE $HOUR * * * $SCRIPT >/dev/null 2>&1 $TAG"
+( crontab -l 2>/dev/null | grep -vF "$TAG" || true; echo "$LINE" ) | crontab -
+
+# Check that the cron service is running
+if command -v systemctl >/dev/null; then
+  SVC=$(systemctl list-unit-files 2>/dev/null | grep -oE '^(cron|crond)\.service' | head -n1 || true)
+  if [[ -n $SVC ]] && ! systemctl is-active --quiet "$SVC"; then
+    echo "WARNING: $SVC is not running. Start it with: sudo systemctl enable --now $SVC"
+  fi
+fi
+
+echo "Cron job created for $(id -un):"
+crontab -l | grep -F "$TAG"
+echo "System time zone: $(timedatectl show -p Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null || echo unknown)"
+```
+
+-----
+## Ongoing: please tell us in advance if…
+
+- your **public IP** changes (new internet provider, new server, etc.). Otherwise the upload will stop working;
+- you move the job to **another machine**. You will need a new key: repeat Part 1, Steps 2 to 6;
+- the **file format or columns** change.
+
+If only the **export path** changes, just update `FILE` in `send_sftp.sh` (or in your script of choise). You do not need to tell us.
+
+----
+## Troubleshooting
+
+| What you see                                    | Cause                                                              | What to do                                                                                 |
+| ----------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| No new line in the log                          | cron did not run the script                                        | `crontab -l` must show the job. Check the service: `systemctl status cron` (Debian/Ubuntu) |
+| `ERROR: file not found`                         | The ERP export did not run or used another path                    | Check the ERP export and the `FILE` value                                                  |
+| `WARNING: ... last modified N hours ago`        | The ERP did not update the file                                    | Check the ERP export. The old file is sent anyway                                          |
+| `Host key verification failed` (only from cron) | cron runs with a **different account** than the one used in Part 1 | Run `setup_cron.sh` with the same account that made the first connection                   |
+| `Permission denied (publickey)`                 | Wrong `KEY` path or wrong account                                  | Check `KEY` and that the file exists in that account's `~/.ssh`                            |
+| `Connection timed out`                          | Your public IP has changed                                         | Check it (`curl -s https://api.ipify.org`)                                                 |
+
