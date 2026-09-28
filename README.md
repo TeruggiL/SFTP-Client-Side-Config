@@ -10,8 +10,6 @@ The setup has **two parts**. Please complete them **in order**:
 
 > 🔒 **Your connection details** (server address, username) are **not** in this repository. We send them to you by email and confirm the fingerprint by phone.
 
-Any doubt -> Contact at `<TeruggiL@cedec.es>` ·
-
 
 # Part 1 — Access setup and first delivery
 
