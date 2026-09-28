@@ -322,13 +322,13 @@ This depends on your ERP, so please configure it with your usual tools. The expo
 
 | Requirement   | Detail                                                                                                            |
 | ------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Path and name | ==**Always the same**,== e.g. `/opt/erp-export/depreciation.json`. Each export replaces the previous one          |
+| Path and name | ==**Always the same**,== e.g. `/opt/{{erp}}-export/depreciation.json`. Each export replaces the previous one          |
 | Content       | `<AGREED_PERIOD>`. Each upload **replaces** the previous file on our server, so the file must always be complete. |
 | Format        | Same as the historical file (Part 1, Step 7.1), with the same columns in the same order                           |
 | Timing        | The export must **finish before** the upload time (Step 4)                                                        |
 | Permissions   | The account running the script must be able to **read** the file                                                  |
 
-> 💡 **Recommended (Not mandatory):** make the ERP write to a temporary name and rename it at the end, e.g. export to `sat.json.tmp` and then run `mv sat.json.tmp sat.csv`. This way the upload never takes a half-written file.
+> 💡 **Recommended (Not mandatory):** make the ERP write to a temporary name and rename it at the end, e.g. export to `depreciation.json.tmp` and then run `mv depreciation.json.tmp depreciation.json`. This way the upload never takes a half-written file.
 
 **Check** after an export:
 
