@@ -45,7 +45,7 @@ sudo dnf install openssh-clients     # RHEL / Alma / Rocky
 
 ## Step 2 — Create your SSH key (without passphrase)
 
-The job runs automatically at night with nobody at the keyboard, so the key **must not have a passphrase**.
+The job should run automatically and unattended, so the key **must not have a passphrase**.
 
 ```bash
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
