@@ -225,18 +225,18 @@ Example:
 
 ```bash
 # First connect
-sftp -i ~/.ssh/erp_delivery <SFTP_USER>@<SERVER_HOST>
+sftp -i ~/.ssh/{{erp}}_delivery <sftp_user>@<server_host>
 ```
 
 Then copy to folder on sftp server:
 
 ```
-sftp> put /path/to/<HISTORY_FILE> /incoming/sat/ 
-sftp> ls -l /incoming/sat 
+sftp> put /path/to/<HISTORY_FILE> /incoming/depreciation/ 
+sftp> ls -l /incoming/depreciation 
 sftp> bye
 ```
 
-✅ **Expected:** a progress bar reaching `100%`, and the file listed in `/incoming/sat` with the **same size** as on your machine (`ls -l /path/to/<HISTORY_FILE>`).
+✅ **Expected:** a progress bar reaching `100%`, and the file listed in `/incoming/depreciation` with the **same size** as on your machine (`ls -l /path/to/<HISTORY_FILE>`).
 
 > If the connection drops during a large upload, connect again and use `reput` instead of `put`, with the same arguments. It resumes where it stopped.
 
@@ -273,7 +273,7 @@ We will compare these values with the file we received and confirm. **After our 
 | `Connection refused` | Our service is not available | Contact us |
 | `Host key verification failed` or `REMOTE HOST IDENTIFICATION HAS CHANGED` | The server identity does not match | **Stop** and call us |
 | `Permission denied (publickey)` | Wrong username, wrong key file, or key not yet authorized | Check `<SFTP_USER>` and the `-i ~/.ssh/{{erp}}_delivery` path, then contact us |
-| `UNPROTECTED PRIVATE KEY FILE` | Private key permissions are too open | `chmod 600 ~/.ssh/erp_delivery` |
+| `UNPROTECTED PRIVATE KEY FILE` | Private key permissions are too open | `chmod 600 ~/.ssh/{{erp}}_delivery` |
 | `Enter passphrase for key` | The key has a passphrase | Repeat Step 2 with a new key and send us the new `.pub` |
 | Asked for a **password** | Something is wrong on our side | Do not type anything. Contact us |
 
@@ -289,7 +289,7 @@ This output contains no secrets.
 
 ## Security rules
 
-- **Never** send, copy or share the private key (`~/.ssh/erp_delivery`).
+- **Never** send, copy or share the private key (`~/.ssh/{{erp}}_delivery`).
 - Do not copy the key to other machines. If you change machines, create a new key and send us the new `.pub`.
 - If you think the key or the machine has been compromised, **tell us immediately** and we will block access.
 
@@ -299,11 +299,11 @@ This output contains no secrets.
 
 **How it should work:**
 ```
-[ERP] ──exports every day──> /opt/erp-export/field-service.json ──send_sftp.sh (cron)──> our server /incoming/field-service/
+[ERP] ──exports every day──> /opt/{{erp}}-export/field-service.json ──send_to_sftp.sh (cron)──> SFTP server /incoming/field-service/
 
-[ERP] ──exports every day──> /opt/erp-export/logistics-costs.json ──send_sftp.sh (cron)──> our server /incoming/logistics-costs/
+[ERP] ──exports every day──> /opt/{{erp}}-export/logistics-costs.json ──send_to_sftp.sh (cron)──> SFTP server /incoming/logistics-costs/
 
-[ERP] ──exports every day──> /opt/erp-export/depreciation.json ──send_sftp.sh (cron)──> our server /incoming/depreciation/
+[ERP] ──exports every day──> /opt/{{erp}}-export/depreciation.json ──send_to_sftp.sh (cron)──> SFTP server /incoming/depreciation/
 ```
 
 Flow:
